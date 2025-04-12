@@ -80,7 +80,7 @@ export default function DeveloperPage() {
           </CardContent>
           <CardFooter>
             <Link href="/auth/signin" className="w-full">
-              <Button className="w-full">로그인 페이지로 이동</Button>
+              <Button className="w-full">로그인 페��지로 이동</Button>
             </Link>
           </CardFooter>
         </Card>

@@ -4,7 +4,7 @@ import KakaoProvider from 'next-auth/providers/kakao'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { createClient } from '@supabase/supabase-js'
 
-// Supabase 클라이언트 생성
+// Supabase 서버 클라이언트 생성 (service role key 사용)
 const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || '', process.env.SUPABASE_SERVICE_ROLE_KEY || '', {
   auth: {
     autoRefreshToken: false,
@@ -16,7 +16,7 @@ const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || '', p
 const DEVELOPER_EMAIL = 'developer@everychristian.com'
 const DEVELOPER_PASSWORD = 'developer123'
 const DEVELOPER_NAME = '개발자'
-const DEVELOPER_ID = '00000000-0000-0000-0000-000000000001' // 유효한 UUID 형식으로 변경
+const DEVELOPER_ID = 'dev-00000000-0000-0000-0000-000000000000'
 
 export const authOptions: NextAuthOptions = {
   session: {
@@ -46,23 +46,9 @@ export const authOptions: NextAuthOptions = {
             id: DEVELOPER_ID,
             name: DEVELOPER_NAME,
             email: DEVELOPER_EMAIL,
+            onboardingCompleted: true, // 개발자는 온보딩 완료 상태
           }
         }
-
-        // Supabase에서 사용자 확인 (실제 구현 시 추가)
-        // const { data, error } = await supabaseAdmin
-        //   .from("users")
-        //   .select("*")
-        //   .eq("email", credentials.email)
-        //   .single()
-
-        // if (data && validatePassword(credentials.password, data.password)) {
-        //   return {
-        //     id: data.id,
-        //     name: data.name,
-        //     email: data.email,
-        //   }
-        // }
 
         return null
       },
@@ -73,6 +59,16 @@ export const authOptions: NextAuthOptions = {
           GoogleProvider({
             clientId: process.env.GOOGLE_CLIENT_ID,
             clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+            profile(profile) {
+              return {
+                id: profile.sub,
+                name: profile.name,
+                email: profile.email,
+                image: profile.picture,
+                provider: 'google',
+                external_id: profile.sub,
+              }
+            },
           }),
         ]
       : []),
@@ -82,6 +78,16 @@ export const authOptions: NextAuthOptions = {
           KakaoProvider({
             clientId: process.env.KAKAO_CLIENT_ID,
             clientSecret: process.env.KAKAO_CLIENT_SECRET,
+            profile(profile) {
+              return {
+                id: String(profile.id),
+                name: profile.properties?.nickname || '카카오 사용자',
+                email: profile.kakao_account?.email,
+                image: profile.properties?.profile_image,
+                provider: 'kakao',
+                external_id: String(profile.id),
+              }
+            },
           }),
         ]
       : []),
@@ -100,37 +106,36 @@ export const authOptions: NextAuthOptions = {
       // OAuth 로그인 시 사용자 정보 저장/업데이트
       if (account && account.provider !== 'credentials') {
         try {
-          // 사용자가 이미 존재하는지 확인
-          const { data: existingUser, error: queryError } = await supabaseAdmin.from('users').select('*').eq('email', user.email).maybeSingle()
-
-          if (queryError) throw queryError
-
-          if (!existingUser) {
-            // 새 사용자 생성
-            const { error: insertError } = await supabaseAdmin.from('users').insert({
+          // 사용자 정보를 Supabase에 저장하는 API 호출
+          const response = await fetch(`${process.env.NEXTAUTH_URL}/api/auth/register-user`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              // 내부 API 호출을 위한 비밀 키 (실제 구현에서는 환경 변수로 관리)
+              Authorization: `Bearer ${process.env.API_SECRET_KEY || 'internal-api-secret'}`,
+            },
+            body: JSON.stringify({
               id: user.id,
               email: user.email,
               name: user.name,
               image: user.image,
-              created_at: new Date().toISOString(),
-            })
+              provider: user.provider || account.provider,
+              external_id: user.external_id || account.providerAccountId,
+            }),
+          })
 
-            if (insertError) throw insertError
-          } else {
-            // 기존 사용자 정보 업데이트
-            const { error: updateError } = await supabaseAdmin
-              .from('users')
-              .update({
-                name: user.name,
-                image: user.image,
-              })
-              .eq('id', existingUser.id)
-
-            if (updateError) throw updateError
+          if (!response.ok) {
+            console.error('사용자 등록 API 오류:', await response.text())
+            // 개발 중에는 오류가 있어도 로그인 허용
+            return true
           }
+
+          const data = await response.json()
+          // 온보딩 상태 설정
+          user.onboardingCompleted = data.user.onboarding_completed
         } catch (error) {
           console.error('사용자 정보 저장 오류:', error)
-          // 개발 중에는 항상 성공으로 처리
+          // 개발 중에는 오류가 있어도 로그인 허용
           return true
         }
       }
@@ -140,13 +145,30 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (token) {
         session.user.id = token.id as string
+        // 온보딩 상태 추가
+        session.user.onboardingCompleted = token.onboardingCompleted as boolean
+        // 추가 사용자 정보
+        if (token.provider) session.user.provider = token.provider as string
+        if (token.external_id) session.user.external_id = token.external_id as string
       }
       return session
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id
+        // 온보딩 상태 추가
+        token.onboardingCompleted = user.onboardingCompleted
+        // 추가 사용자 정보
+        if (user.provider) token.provider = user.provider
+        if (user.external_id) token.external_id = user.external_id
       }
+
+      // account 정보가 있으면 provider와 external_id 추가
+      if (account) {
+        token.provider = account.provider
+        token.external_id = account.providerAccountId
+      }
+
       return token
     },
   },

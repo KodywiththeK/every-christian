@@ -10,6 +10,13 @@ export interface Database {
           name: string | null
           image: string | null
           created_at: string
+          church_name: string | null
+          denomination: string | null
+          age: number | null
+          gender: string | null
+          region: string | null
+          onboarding_completed: boolean
+          last_login: string | null
         }
         Insert: {
           id?: string
@@ -17,6 +24,13 @@ export interface Database {
           name?: string | null
           image?: string | null
           created_at?: string
+          church_name?: string | null
+          denomination?: string | null
+          age?: number | null
+          gender?: string | null
+          region?: string | null
+          onboarding_completed?: boolean
+          last_login?: string | null
         }
         Update: {
           id?: string
@@ -24,6 +38,13 @@ export interface Database {
           name?: string | null
           image?: string | null
           created_at?: string
+          church_name?: string | null
+          denomination?: string | null
+          age?: number | null
+          gender?: string | null
+          region?: string | null
+          onboarding_completed?: boolean
+          last_login?: string | null
         }
       }
       gratitude_journals: {
@@ -230,6 +251,23 @@ export interface Database {
           created_at?: string
         }
       }
+      denominations: {
+        Row: {
+          id: string
+          name: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          created_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never
@@ -242,4 +280,3 @@ export interface Database {
     }
   }
 }
-

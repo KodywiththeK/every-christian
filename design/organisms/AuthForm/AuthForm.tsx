@@ -7,8 +7,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/design/atoms/Button/Button'
 import { FormField } from '@/design/molecules/FormField/FormField'
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/design/molecules/Card/Card'
-import { ChromeIcon as Google, Mail } from 'lucide-react'
-import Image from 'next/image'
+import { Mail } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { InfoIcon } from 'lucide-react'
 
@@ -45,6 +44,7 @@ export function AuthForm({ mode, callbackUrl = '/home' }: AuthFormProps) {
         if (result?.error) {
           setError('이메일 또는 비밀번호가 올바르지 않습니다.')
         } else {
+          // 로그인 성공 - 미들웨어에서 온보딩 상태에 따라 적절한 페이지로 리다이렉트
           router.push(callbackUrl)
         }
       } else {
@@ -69,7 +69,8 @@ export function AuthForm({ mode, callbackUrl = '/home' }: AuthFormProps) {
             email,
             password,
           })
-          router.push(callbackUrl)
+          // 새 사용자는 온보딩 페이지로 리다이렉트
+          router.push('/onboarding')
         }
       }
     } catch (err) {
@@ -84,6 +85,7 @@ export function AuthForm({ mode, callbackUrl = '/home' }: AuthFormProps) {
   const handleSocialSignIn = async (provider: string) => {
     setLoading(true)
     try {
+      // 소셜 로그인 후 미들웨어에서 온보딩 상태에 따라 적절한 페이지로 리다이렉트
       await signIn(provider, { callbackUrl })
     } catch (err) {
       console.error(err)
@@ -144,27 +146,12 @@ export function AuthForm({ mode, callbackUrl = '/home' }: AuthFormProps) {
         </div>
 
         <div className="space-y-3">
-          {
-            <Button type="button" variant="outline" fullWidth={true} onClick={() => handleSocialSignIn('google')} leftIcon={<Google className="h-4 w-4" />}>
-              Google로 계속하기
-            </Button>
-          }
-
-          {
-            <Button
-              type="button"
-              variant="outline"
-              fullWidth={true}
-              onClick={() => handleSocialSignIn('kakao')}
-              leftIcon={
-                <div className="h-4 w-4 flex items-center justify-center">
-                  <Image src="/kakao-logo.png" alt="Kakao" width={16} height={16} />
-                </div>
-              }
-            >
-              카카오로 계속하기
-            </Button>
-          }
+          <Button type="button" variant="outline" fullWidth={true} onClick={() => handleSocialSignIn('google')}>
+            Google로 계속하기
+          </Button>
+          <Button type="button" variant="outline" fullWidth={true} onClick={() => handleSocialSignIn('kakao')}>
+            카카오로 계속하기
+          </Button>
         </div>
       </CardContent>
       <CardFooter className="flex justify-center">
